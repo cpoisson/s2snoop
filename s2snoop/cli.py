@@ -175,6 +175,10 @@ def run_clear(argv: list[str]) -> None:
 
 
 def main() -> None:
+    if len(sys.argv) > 1 and sys.argv[1] in ("--version", "-V"):
+        from s2snoop import __version__
+        print(f"s2snoop {__version__}")
+        return
     if len(sys.argv) > 1 and sys.argv[1] == "clear":
         run_clear(sys.argv[2:])
         return

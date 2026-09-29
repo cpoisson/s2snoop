@@ -53,6 +53,21 @@ with `websockets.serve`, point `--upstream` at it, then use the dashboard's Talk
 - **Commits:** imperative subject, with the body explaining why. Don't mention AI agents or assistants in
   commit messages (no `Co-Authored-By` trailers for them).
 
+## Versioning and releases
+
+[Semantic Versioning](https://semver.org). While the version is 0.x, a minor bump may break compatibility;
+say so under **Changed** with **Breaking**.
+
+- Every user-visible change adds a line under `## [Unreleased]` in `CHANGELOG.md`, in the same commit.
+- The version lives only in `pyproject.toml`. `s2snoop.__version__` reads it from the package metadata.
+- To release `X.Y.Z`:
+  1. Rename `[Unreleased]` to `[X.Y.Z] - YYYY-MM-DD`, add a fresh `[Unreleased]` above it, and update the
+     compare links at the bottom.
+  2. Set `version = "X.Y.Z"` in `pyproject.toml`, then run `uv lock`.
+  3. Commit (`Release X.Y.Z`), tag `vX.Y.Z`, and push the commit and the tag.
+  4. `.github/workflows/release.yml` checks that the tag matches the version, runs the tests, builds, and
+     publishes a GitHub release using that version's changelog section.
+
 ## Protocol facts worth knowing
 
 Checked against speech-to-speech `c60efc4` and the OpenAI Realtime API:
