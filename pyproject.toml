@@ -1,6 +1,6 @@
 [project]
 name = "s2snoop"
-version = "0.2.0"
+version = "0.3.0"
 description = "Observe OpenAI Realtime voice sessions live: latency, transcripts, tools, images, tokens, aligned audio replay."
 readme = "README.md"
 license = "Apache-2.0"

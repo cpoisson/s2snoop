@@ -8,6 +8,14 @@ that break compatibility; they are listed under **Changed** and marked **Breakin
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-29
+
+### Changed
+
+- **Breaking:** the dashboard's default address is now `127.0.0.1:8007` (was `127.0.0.1:8767`). 8007 is a nod to
+  007, it's unassigned, and it stays clear of Gradio (7860–7959) and Jupyter (8888). Pass `--ui 127.0.0.1:8767`
+  to keep the 0.2.0 address.
+
 ## [0.2.0] - 2026-09-29
 
 ### Added
@@ -54,6 +62,7 @@ that break compatibility; they are listed under **Changed** and marked **Breakin
 - `clear`, `fix-rate`, `--no-audio` and `--retention-days`.
 - CI on Python 3.10 and 3.13.
 
-[Unreleased]: https://github.com/cpoisson/s2snoop/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/cpoisson/s2snoop/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/cpoisson/s2snoop/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/cpoisson/s2snoop/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/cpoisson/s2snoop/releases/tag/v0.1.0

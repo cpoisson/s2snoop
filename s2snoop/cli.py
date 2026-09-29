@@ -2,7 +2,7 @@
 
     s2snoop [--listen 0.0.0.0:8765] [--upstream ws://127.0.0.1:8766] \
                    [--llm-listen 127.0.0.1:8081 --llm-upstream http://host:8080] \
-                   [--ui 127.0.0.1:8767] [--route name=wss://host] [--no-audio]
+                   [--ui 127.0.0.1:8007] [--route name=wss://host] [--no-audio]
 
     s2snoop s2s [--s2s-python PATH] -- serve --port 8766 ...
 """
@@ -196,7 +196,7 @@ def main() -> None:
                         help="named route: ws://proxy/NAME/v1/realtime → URL/v1/realtime (repeatable)")
     parser.add_argument("--llm-listen", default="127.0.0.1:8081", help="LLM proxy address")
     parser.add_argument("--llm-upstream", default=None, help="OpenAI-compatible LLM server to proxy (e.g. http://llm-host:8080)")
-    parser.add_argument("--ui", default="127.0.0.1:8767", help="dashboard address (default 127.0.0.1:8767; no auth, bind wider with care)")
+    parser.add_argument("--ui", default="127.0.0.1:8007", help="dashboard address (default 127.0.0.1:8007; no auth, bind wider with care)")
     parser.add_argument("--tls-cert", default=None, help="serve the dashboard over https (needed for the browser mic "
                         "on other devices)")
     parser.add_argument("--tls-key", default=None, help="private key for --tls-cert")

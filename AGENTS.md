@@ -43,8 +43,8 @@ with `websockets.serve`, point `--upstream` at it, then use the dashboard's Talk
   are masked in stored URLs.
 - **Safe defaults.** The dashboard binds to `127.0.0.1`. Anything that widens exposure is opt-in and
   documented in the README's Security section.
-- **Ports:** proxy 8765, speech-to-speech 8766, dashboard 8767, LLM proxy 8081, probe UDP 8799. Keep the
-  dashboard away from 7860–7959, which Gradio apps (e.g. the Reachy Mini conversation app) use.
+- **Ports:** proxy 8765, speech-to-speech 8766, dashboard 8007, LLM proxy 8081, probe UDP 8799. Keep the
+  dashboard away from 7860–7959 (Gradio apps, e.g. the Reachy Mini conversation app) and 8888 (Jupyter).
 - **English** everywhere: UI, logs, docs, tests.
 - **Front end:** no build step, no framework, no CDN scripts. Asset URLs are versioned by mtime in `web.py`;
   add any new static file to that list.
