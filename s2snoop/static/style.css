@@ -69,6 +69,9 @@ select, input[type=text], input:not([type]) { background: var(--bg-elev-2); bord
 .s-title h1 { font-size: 22px; margin: 0; }
 .s-meta { grid-column: 1 / -1; grid-row: 2; font-size: 12px; color: var(--text-faint); display: flex; flex-wrap: wrap; gap: 2px 16px; min-width: 0; }
 .s-meta span { overflow-wrap: anywhere; }
+.s-models { grid-column: 1 / -1; grid-row: 3; font-size: 12px; color: var(--text-dim); display: flex; flex-wrap: wrap; gap: 4px 8px; min-width: 0; }
+.s-models .model { border: 1px solid var(--border-strong); border-radius: 6px; padding: 1px 7px; overflow-wrap: anywhere; }
+.s-models .model b { color: var(--probe); font-weight: 600; margin-right: 4px; }
 .live-badge { color: var(--error); font-family: var(--font-mono); font-size: 12px; }
 
 .stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; margin-bottom: 14px; }
@@ -135,6 +138,8 @@ select, input[type=text], input:not([type]) { background: var(--bg-elev-2); bord
 .hbar .track { height: 8px; background: var(--bg-elev-2); border-radius: 4px; overflow: hidden; }
 .hbar .fill { height: 100%; border-radius: 4px; }
 .hbar .val { text-align: right; color: var(--text-dim); }
+.hbar.na span:first-child, .hbar.na .val { color: var(--text-faint); }
+.hbar.na .track { background: repeating-linear-gradient(45deg, var(--bg-elev-2), var(--bg-elev-2) 4px, transparent 4px, transparent 8px); }
 details.req { border: 1px solid var(--border); border-radius: 9px; padding: 6px 9px; margin-top: 6px; background: var(--bg); }
 details.req summary { cursor: pointer; font-size: 12.5px; }
 details.req pre, pre.json { font-family: var(--font-mono); font-size: 11.5px; white-space: pre-wrap; word-break: break-word; color: var(--text-dim); max-height: 340px; overflow: auto; margin: 6px 0 0; }

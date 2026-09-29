@@ -167,12 +167,38 @@ function renderSession(first) {
     `output ${esc(outputLabel(s))}`,
     meta.close_reason && `ended: ${esc(meta.close_reason)}`,
   ].filter(Boolean).map((x) => `<span>${x}</span>`).join("");
+  renderModels(s);
   renderStats();
   renderFeed();
   renderInspector();
   if (S.tab === "config") renderConfig();
   if (S.tab === "events" && s.live) loadEvents(true);
   drawTimeline(first);
+}
+
+// Pipeline backends from probe C: one short label per handler (model id, voice, VAD settings).
+const MODEL_KEYS = ["model_name", "model", "model_id", "repo_id", "checkpoint"];
+function modelLabel(row) {
+  const c = row.config || {};
+  if (row.stage === "vad") {
+    const parts = [c.vad || "silero"];
+    if (c.thresh != null) parts.push(`thresh ${c.thresh}`);
+    if (c.min_speech_ms != null) parts.push(`speech ≥ ${c.min_speech_ms} ms`);
+    if (c.min_silence_ms != null) parts.push(`silence ${c.min_silence_ms} ms`);
+    if (c.smart_turn != null) parts.push(c.smart_turn ? `Smart Turn @${c.smart_turn_threshold ?? "?"}` : "no Smart Turn");
+    return parts.join(" · ");
+  }
+  const key = MODEL_KEYS.find((k) => typeof c[k] === "string" && c[k]);
+  const parts = [key ? c[key] : row.handler];
+  for (const k of ["voice", "speaker", "language"]) if (c[k] != null && c[k] !== "") parts.push(`${k} ${c[k]}`);
+  return parts.join(" · ");
+}
+function renderModels(s) {
+  const rows = (s.models || []).filter((r) => r.stage !== "other");
+  const el = $("s-models");
+  el.hidden = !rows.length;
+  const multi = new Set(rows.map((r) => r.pipeline)).size > 1;
+  el.innerHTML = rows.map((r) => `<span class="model" title="${esc(`${r.handler}\n${JSON.stringify(r.config, null, 2)}`)}"><b>${esc(r.stage.toUpperCase())}${multi ? ` p${esc(r.pipeline)}` : ""}</b>${esc(modelLabel(r))}</span>`).join("");
 }
 
 const RATE_SOURCE = { declared: "declared", default: "not declared, server default", measured: "measured from the stream", fixed: "repaired" };
@@ -208,6 +234,19 @@ function renderStats() {
   ];
   $("stats").innerHTML = items.map(([l, v, t]) => `<div class="stat" title="${esc(t)}"><div class="l">${l}</div><div class="v">${v}</div></div>`).join("");
 }
+
+// Server latency record (speech-to-speech docs/response-latency.md, v1 and v2). A field the record
+// carries as null was not measured (e.g. a backend without STT timing) and is shown as n/a. A field
+// the record does not carry at all (e.g. llm_ttft_s, dropped in v2) is left out.
+const LAT_FIELDS = [
+  ["vad decision", "vad_decision_s", COLORS.probe],
+  ["hold", "hold_s", COLORS.faint],
+  ["stt", "stt_s", COLORS.user],
+  ["llm ttft", "llm_ttft_s", COLORS.prefill],
+  ["llm", "llm_s", COLORS.proc],
+  ["tts ttfa", "tts_ttfa_s", COLORS.asst],
+  ["server e2e", "e2e_s", COLORS.text],
+];
 
 function latParts(turn) {
   // stacked bar: stt, llm ttft, tools, rest of llm, tts ttfa (server values when present)
@@ -274,12 +313,15 @@ function renderInspector() {
   for (const r of turn.responses) {
     const l = r.latency; if (!l) continue;
     const tag = turn.responses.length > 1 ? ` ·${r.id.slice(-4)}` : "";
-    [["stt", l.stt_s, COLORS.user], ["llm ttft", l.llm_ttft_s, COLORS.prefill], ["llm", l.llm_s, COLORS.proc], ["tts ttfa", l.tts_ttfa_s, COLORS.asst], ["server e2e", l.e2e_s, COLORS.text]]
-      .forEach(([k, v, c]) => { if (v != null) bars.push([k + tag, v, c]); });
+    for (const [k, key, c] of LAT_FIELDS) if (key in l) bars.push([k + tag, l[key], c]);
   }
   if (bars.length) {
-    const max = Math.max(...bars.map((b) => b[1]), 0.001);
-    out.push(`<h3>Latency</h3><div class="hbars">${bars.map(([k, v, c]) => `<div class="hbar"><span>${esc(k)}</span><div class="track"><div class="fill" style="width:${(v / max) * 100}%;background:${c}"></div></div><span class="val">${ms(v)}</span></div>`).join("")}</div>`);
+    const max = Math.max(...bars.map((b) => b[1] ?? 0), 0.001);
+    const row = ([k, v, c]) => v == null
+      ? `<div class="hbar na" title="The server reported no value: this stage was not measured for this backend, or did not run."><span>${esc(k)}</span><div class="track"></div><span class="val">n/a</span></div>`
+      : `<div class="hbar"><span>${esc(k)}</span><div class="track"><div class="fill" style="width:${(v / max) * 100}%;background:${c}"></div></div><span class="val">${ms(v)}</span></div>`;
+    const ver = turn.responses.map((r) => r.latency && r.latency.version).find((x) => x != null);
+    out.push(`<h3>Latency${ver != null ? ` <small class="muted">server record v${esc(ver)}</small>` : ""}</h3><div class="hbars">${bars.map(row).join("")}</div>`);
   }
   const kv = [];
   if (turn.speech_start != null) kv.push(["speech", `${tc(turn.speech_start)} → ${turn.speech_end != null ? tc(turn.speech_end) : "…"}${turn.speech_end != null ? ` (${sec(turn.speech_end - turn.speech_start, 1)})` : ""}`]);
@@ -376,6 +418,7 @@ function renderConfig() {
     <div class="card"><h3>Instructions</h3><pre class="json">${esc(cfg.instructions || "—")}</pre></div>
     <div class="card"><h3>Declared tools</h3>${(cfg.tools || []).length ? (cfg.tools || []).map((t) => `<details class="req"><summary>${esc(t.name || (t.function || {}).name || t.type)}</summary><pre class="json">${esc(JSON.stringify(t, null, 2))}</pre></details>`).join("") : "<p class='muted'>—</p>"}</div>
     <div class="card"><h3>Connection</h3><pre class="json">${esc(JSON.stringify({ ...s.meta, input_format: s.input_format, output_format: s.output_format, voice: cfg.voice, model: cfg.model, mic: s.mic }, null, 2))}</pre></div>
+    <div class="card"><h3>Pipeline (probe C)</h3>${(s.models || []).length ? (s.models || []).map((r) => `<details class="req"><summary>${esc(r.stage.toUpperCase())} · ${esc(r.handler)}${r.pipeline != null ? ` · pipeline ${esc(r.pipeline)}` : ""} · ${esc(modelLabel(r))}</summary><pre class="json">${esc(JSON.stringify(r.config, null, 2))}</pre></details>`).join("") : "<p class='muted'>Not captured: start speech-to-speech through <code>s2snoop s2s</code>.</p>"}</div>
     <div class="card"><h3>Probe</h3><pre class="json">${esc(JSON.stringify(st.probe || {}, null, 2))}</pre></div>
     <div class="card"><h3>Errors (${s.errors.length})</h3>${s.errors.length ? s.errors.map((e) => `<div class="msg system"><div class="role">${tc(e.t)} ${esc(e.code || "")}</div>${esc(e.message)}</div>`).join("") : "<p class='muted'>None.</p>"}</div>`;
 }

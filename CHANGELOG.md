@@ -8,6 +8,24 @@ that break compatibility; they are listed under **Changed** and marked **Breakin
 
 ## [Unreleased]
 
+### Added
+
+- **Pipeline models (probe C).** The session header shows the backend and model of each speech-to-speech stage
+  (VAD settings, STT and TTS model ids, voice, language), and the Config tab shows each handler's full setup.
+  The probe reads the handlers' `setup_kwargs`, drops secret-looking keys, and keeps only scheme, host and
+  path of URLs. A session records the list once per pipeline change.
+- The turn inspector reads latency records v2 (speech-to-speech `3a638ff`): `vad decision` and `hold` bars,
+  and the record version in the heading.
+
+### Fixed
+
+- A latency field the server reports as `null` (a stage not measured for that backend) is shown as **n/a**
+  instead of being hidden. Fields the record doesn't carry, such as `llm_ttft_s` in v2, stay hidden.
+- Session pages no longer fail with a 500 error ("Out of range float values are not JSON compliant") when an event holds
+  a non-finite number, such as the VAD's `max_speech_ms = inf`. The probe sends it as `"inf"`, and values
+  already stored as `Infinity` / `NaN` are read back as `null`. The same strict parsing now applies to relayed
+  Realtime frames and to the server's latency record, where a Python server may also write `NaN` or `Infinity`.
+
 ### Changed
 
 - README: the architecture schematic is now a Mermaid diagram, rendered by GitHub.

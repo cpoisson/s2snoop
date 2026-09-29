@@ -24,6 +24,7 @@ import uvicorn
 from s2snoop.hub import Hub
 from s2snoop.llm_tap import create_llm_tap_app
 from s2snoop.proxy import Router, create_proxy_app
+from s2snoop.store import loads
 from s2snoop.web import create_web_app
 
 logger = logging.getLogger("s2snoop")
@@ -40,7 +41,7 @@ class ProbeProtocol(asyncio.DatagramProtocol):
 
     def datagram_received(self, data: bytes, addr) -> None:
         try:
-            ev = json.loads(data)
+            ev = loads(data)
         except ValueError:
             return
         if isinstance(ev, dict):

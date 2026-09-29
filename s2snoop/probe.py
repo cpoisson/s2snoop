@@ -16,18 +16,23 @@ Hooks (each one is checked and skipped with a warning if the target moved):
 - ``smart_turn``: end-of-turn probability (``speech_to_speech.VAD.smart_turn.SmartTurnAnalyzer.predict``);
 - ``handlers``: per-handler processing spans and text sent to TTS
   (``speech_to_speech.baseHandler.BaseHandler``);
-- ``queues``: input queue depth of every handler, sampled every 50 ms.
+- ``queues``: input queue depth of every handler, sampled every 50 ms;
+- ``models``: the setup configuration of every handler (backend class, model id, voice,
+  language, VAD thresholds…), taken from ``BaseHandler`` ``setup_kwargs`` and sent every 2 s.
+  Secret-looking keys are dropped and URLs keep only scheme, host and path.
 """
 
 from __future__ import annotations
 
 import json
+import math
 import os
 import socket
 import sys
 import threading
 import time
 import weakref
+from urllib.parse import urlsplit
 
 TESTED_WITH = "speech-to-speech @ c60efc4 (2026-09)"
 
@@ -160,6 +165,51 @@ def hook_smart_turn() -> None:
 
 HANDLERS: "weakref.WeakSet" = weakref.WeakSet()
 
+_SECRET = ("key", "token", "secret", "password", "auth", "credential")
+_STAGES = (("VAD", "vad"), ("STT", "stt"), ("ASR", "stt"), ("TTS", "tts"), ("LanguageModel", "llm"),
+           ("Responses", "llm"), ("ChatCompletions", "llm"), ("LLM", "llm"))
+
+
+def _stage(name: str) -> str:
+    for needle, stage in _STAGES:
+        if needle in name:
+            return stage
+    return "other"
+
+
+def _describe(setup_kwargs) -> dict:
+    """Keep what identifies a handler's model: scalar setup kwargs, minus secrets."""
+    out: dict = {}
+    if not isinstance(setup_kwargs, dict):
+        return out
+    for key, value in setup_kwargs.items():
+        if not isinstance(key, str) or any(s in key.lower() for s in _SECRET):
+            continue
+        if isinstance(value, str) and "://" in value:
+            parts = urlsplit(value)
+            value = f"{parts.scheme}://{parts.hostname or ''}{f':{parts.port}' if parts.port else ''}{parts.path}"
+        if isinstance(value, float) and not math.isfinite(value):
+            value = str(value)  # "inf" / "nan": JSON has no such numbers
+        if value is None or isinstance(value, (bool, int, float)) or (isinstance(value, str) and len(value) <= 200):
+            out[key] = value
+        if len(out) >= 40:
+            break
+    return out
+
+
+def models_snapshot() -> list:
+    rows = []
+    for h in list(HANDLERS):
+        config = h.__dict__.get("_snoop_config")
+        if config is None:
+            continue
+        name = type(h).__name__
+        rows.append({"handler": name, "stage": _stage(name), "pipeline": getattr(h, "pipeline_index", None),
+                     "config": config})
+    order = {"vad": 0, "stt": 1, "llm": 2, "tts": 3, "other": 4}
+    rows.sort(key=lambda r: (str(r["pipeline"]), order[r["stage"]], r["handler"]))
+    return rows
+
 
 def _current_pipeline():
     try:
@@ -177,7 +227,13 @@ def hook_handlers() -> None:
     orig_init = cls.__init__
 
     def __init__(self, *args, **kwargs):
+        # BaseHandler(stop_event, queue_in, queue_out, setup_args=(), setup_kwargs={})
+        setup_kwargs = kwargs.get("setup_kwargs", args[4] if len(args) > 4 else None)
         orig_init(self, *args, **kwargs)
+        try:
+            self.__dict__["_snoop_config"] = _describe(setup_kwargs)
+        except Exception:  # noqa: BLE001
+            pass
         HANDLERS.add(self)
         process = self.process
         name = type(self).__name__
@@ -240,6 +296,10 @@ def heartbeat(stop: threading.Event) -> None:
     while not stop.wait(2.0):
         EMIT.send({"kind": "status", "t": time.time(), "hooks": HOOKS, "tested_with": TESTED_WITH,
                    "pid": os.getpid()})
+        if HOOKS.get("models") == "on":
+            rows = models_snapshot()
+            if rows:
+                EMIT.send({"kind": "models", "t": time.time(), "handlers": rows})
 
 
 # ---------------------------------------------------------------- main
@@ -256,6 +316,7 @@ def install() -> None:
             HOOKS[name] = f"off: {type(exc).__name__}: {exc}"
             _warn(f"{name}: disabled ({type(exc).__name__}: {exc})")
     HOOKS["queues"] = HOOKS.get("handlers", "off")
+    HOOKS["models"] = HOOKS.get("handlers", "off")
     stop = threading.Event()
     threading.Thread(target=queue_sampler, args=(stop,), daemon=True, name="snoop-queues").start()
     threading.Thread(target=heartbeat, args=(stop,), daemon=True, name="snoop-heartbeat").start()

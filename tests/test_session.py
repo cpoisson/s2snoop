@@ -141,3 +141,28 @@ def test_cancel_before_speech_started_still_cuts():
     assert snap["turns"][0]["interrupted_at"] == 2.9
     p = snap["placements"][0]
     assert p["cut"] and p["estimated_cut"] and abs(p["played_s"] - 1.5) < 1e-9
+
+
+def test_latency_record_keeps_unmeasured_fields_as_null():
+    # The dashboard shows n/a for a field the server reported as null (e.g. an STT backend
+    # without timing) and hides fields the record doesn't carry (llm_ttft_s is gone in v2).
+    lat = {"version": 2, "stt_s": None, "llm_s": 0.51, "tts_ttfa_s": 0.23, "e2e_s": 1.25,
+           "vad_decision_s": 0.1, "hold_s": 0.0, "smart_status": "complete", "status": "completed"}
+    s = run(speech_turn("u1", 0, 1900, (0.1, 1.9), "Est-ce que tu parles français")
+            + response("r1", "a1", 2.2, "Oui.", latency=lat))
+    recorded = s.snapshot()["turns"][0]["responses"][0]["latency"]
+    assert "stt_s" in recorded and recorded["stt_s"] is None
+    assert "llm_ttft_s" not in recorded
+    assert recorded["vad_decision_s"] == 0.1 and recorded["version"] == 2
+
+
+def test_non_finite_latency_from_server_stays_strict_json():
+    # Python servers json.dumps NaN/Infinity by default; the dashboard's strict encoder rejects them.
+    body = {"id": "r1", "status": "completed",
+            "metadata": {LATENCY_KEY: '{"version": 2, "stt_s": NaN, "e2e_s": Infinity, "llm_s": 0.4}'}}
+    s = run(speech_turn("u1", 0, 1000, (0.1, 1.0), "Hello")
+            + [(1.2, "s2c", {"type": "response.created", "response": {"id": "r1"}}),
+               (1.5, "s2c", {"type": "response.done", "response": body})])
+    snap = s.snapshot()
+    json.dumps(snap, allow_nan=False)
+    assert snap["turns"][0]["responses"][0]["latency"] == {"version": 2, "stt_s": None, "e2e_s": None, "llm_s": 0.4}

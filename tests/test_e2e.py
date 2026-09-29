@@ -256,6 +256,31 @@ def test_probe_series_attribution(tmp_path):
     assert hub.status()["probe"]["status"]["hooks"] == {"vad": "on"}
 
 
+def test_probe_models_recorded_once_per_pipeline_change(tmp_path):
+    hub = Hub(tmp_path / "data")
+    sid = hub.open_session({"client": "t"})
+    t0 = hub.live[sid].t0
+    stt = {"handler": "Qwen3ASRSTTHandler", "stage": "stt", "pipeline": 0,
+           "config": {"model_name": "Qwen/Qwen3-ASR-0.6B-hf"}}
+    # The probe resends the same list every 2 s; the session keeps one event per change.
+    for dt in (1, 3, 5):
+        hub.ingest_probe({"kind": "models", "t": t0 + dt, "handlers": [stt]})
+    other = {**stt, "config": {"model_name": "Qwen/Qwen3-ASR-1.7B-hf"}}
+    hub.ingest_probe({"kind": "models", "t": t0 + 7, "handlers": [other]})
+    assert len([e for e in hub._events if e[0] == sid and e[3] == "models"]) == 2
+    assert hub.live[sid].session.snapshot()["models"] == [other]
+    assert hub.status()["probe"]["models"] == [other]
+
+
+def test_relayed_frame_with_non_finite_numbers_is_stored_as_strict_json(tmp_path):
+    hub = Hub(tmp_path / "data")
+    sid = hub.open_session({"client": "t"})
+    t0 = hub.live[sid].t0
+    hub.ingest_realtime(sid, t0 + 1, "s2c", '{"type": "rate_limits.updated", "reset_seconds": Infinity}')
+    stored = [e for e in hub._events if e[0] == sid and e[3] == "rate_limits.updated"]
+    assert stored and json.loads(stored[0][4], parse_constant=lambda c: pytest.fail(f"non-strict {c}"))
+
+
 def test_clear_sessions_keeps_live_ones(tmp_path):
     from fastapi.testclient import TestClient
 

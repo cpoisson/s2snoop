@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from s2snoop.audio import MicMap
+from s2snoop.store import loads
 
 LATENCY_KEY = "speech_to_speech.turn_latency"
 
@@ -136,6 +137,8 @@ class Session:
         self.t_last = 0.0
         self.n_events = 0
         self.config: dict = {}
+        # Backends and models of the speech-to-speech pipeline, from probe C.
+        self.models: list[dict] = []
 
     # ------------------------------------------------------------ helpers
     def _turn(self, t: float, source: str) -> Turn:
@@ -280,7 +283,7 @@ class Session:
                 raw = meta.get(LATENCY_KEY)
                 if raw:
                     try:
-                        resp.latency = json.loads(raw) if isinstance(raw, str) else raw
+                        resp.latency = loads(raw) if isinstance(raw, str) else raw
                     except ValueError:
                         pass
                 if resp.status == "cancelled" and resp.cut_t is None:
@@ -317,7 +320,9 @@ class Session:
 
     def _probe(self, t: float, ev: dict) -> None:
         kind = ev.get("kind")
-        if kind == "smart_turn":
+        if kind == "models":
+            self.models = list(ev.get("handlers") or [])
+        elif kind == "smart_turn":
             # Smart Turn runs at the VAD pause, before the server emits speech_stopped:
             # it belongs to the latest turn whose speech started before it.
             turn = self._turn_at(t)
@@ -421,7 +426,7 @@ class Session:
     def snapshot(self) -> dict:
         return {
             "id": self.id, "meta": self.meta, "input_format": self.input_format,
-            "output_format": self.output_format, "config": self.config,
+            "output_format": self.output_format, "config": self.config, "models": self.models,
             "mic": {"rate": self.mic.rate, "start_s": self.mic.start_s, **self.mic_info},
             "turns": [x.to_json() for x in self.turns], "placements": self.placements(),
             "errors": self.errors, "stats": self.stats(),

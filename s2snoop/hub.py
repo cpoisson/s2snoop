@@ -23,7 +23,7 @@ from pathlib import Path
 
 from s2snoop import audio as A
 from s2snoop.session import AUDIO_DELTA, Session
-from s2snoop.store import Store
+from s2snoop.store import Store, loads
 
 logger = logging.getLogger("s2snoop.hub")
 
@@ -47,6 +47,7 @@ class Runtime:
     closed: bool = False
     closed_at: float | None = None
     version: int = 0
+    models_json: str | None = None
 
 
 class Hub:
@@ -63,6 +64,7 @@ class Hub:
         self._cache: dict[str, tuple[float, dict, Session]] = {}
         self.orphans = {"llm": 0, "probe": 0}
         self.probe_status: dict | None = None
+        self.probe_models: list | None = None
         self.probe_seen: float | None = None
         self.llm_seen: float | None = None
 
@@ -108,7 +110,7 @@ class Hub:
         if rt is None or isinstance(raw, bytes):
             return
         try:
-            ev = json.loads(raw)
+            ev = loads(raw)  # a server's json.dumps may write NaN/Infinity, which strict JSON rejects
         except ValueError:
             return
         if not isinstance(ev, dict):
@@ -236,6 +238,13 @@ class Hub:
             self.probe_status = ev
             return
         rt = self._attribute(ev.get("t", time.time()))
+        if kind == "models":
+            # Sent every 2 s; the session only records it when the pipeline changes.
+            self.probe_models = ev.get("handlers")
+            key = json.dumps(self.probe_models, sort_keys=True)
+            if rt is None or rt.models_json == key:
+                return
+            rt.models_json = key
         if rt is None:
             self.orphans["probe"] += 1
             return
@@ -410,7 +419,7 @@ class Hub:
         return {
             "live_sessions": sum(1 for rt in self.live.values() if not rt.closed),
             "probe": {"connected": bool(self.probe_seen and now - self.probe_seen < 5),
-                      "status": self.probe_status},
+                      "status": self.probe_status, "models": self.probe_models},
             "llm_tap": {"last_call_s_ago": (now - self.llm_seen) if self.llm_seen else None},
             "orphans": self.orphans,
             "record_audio": self.record_audio,

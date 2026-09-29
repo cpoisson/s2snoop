@@ -47,7 +47,7 @@ flowchart LR
 |---|---|---|
 | **A · Realtime proxy** | audio in and out, transcripts, tools, images, tokens, the server's own latency report, and the latency the proxy measures from end of speech to first audio | point the client at the proxy, or move the server to another port |
 | **B · LLM proxy** *(optional)* | the exact request (instructions, history, tools), TTFT, duration, tokens, tok/s | a server that calls an OpenAI-compatible LLM over HTTP at a configurable base URL |
-| **C · probe** *(optional, speech-to-speech only)* | Silero probability per frame and its threshold, Smart Turn probability, the text sent to TTS, per-handler spans, queue depth | launch speech-to-speech through `s2snoop s2s` |
+| **C · probe** *(optional, speech-to-speech only)* | Silero probability per frame and its threshold, Smart Turn probability, the text sent to TTS, per-handler spans, queue depth, the backend and model of each stage | launch speech-to-speech through `s2snoop s2s` |
 
 If B or C isn't running, its lanes are hidden from the dashboard.
 
@@ -178,7 +178,9 @@ uv run s2snoop s2s [--s2s-python PATH] [--probe HOST:PORT] -- <speech-to-speech 
 - **Replay**: both tracks on one Web Audio clock, so they stay aligned to the sample. Click anywhere to seek,
   space to play or pause, mute each track, play at 1×, 1.5× or 2×. You can also replay the full generated TTS
   of any response.
-- **Turn inspector**: latency bars (end-to-end at the proxy, STT, LLM TTFT, LLM, TTS time to first audio, end-to-end at the server), Smart Turn, the full LLM request
+- **Pipeline** (probe C): the VAD settings and the STT, LLM and TTS backends and models, in the session
+  header; each handler's full setup in the Config tab.
+- **Turn inspector**: latency bars (end-to-end at the proxy, VAD decision, hold, STT, LLM TTFT, LLM, TTS time to first audio, end-to-end at the server; a stage the server didn't measure shows as n/a), Smart Turn, the full LLM request
   (instructions, history, tools, raw JSON), TTS segments.
 - **Raw events**: every stored event, filterable by type and source.
 

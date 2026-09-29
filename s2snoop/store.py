@@ -10,6 +10,16 @@ import json
 import sqlite3
 from pathlib import Path
 
+
+def loads(raw: str | bytes):
+    """json.loads that maps the non-standard NaN / Infinity tokens to None.
+
+    Python's json.dumps writes them by default (s2s uses float("inf") as a
+    setup value), but strict encoders downstream (Starlette, JSON.parse) reject them.
+    """
+    return json.loads(raw, parse_constant=lambda _: None)
+
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS sessions (
     id TEXT PRIMARY KEY,
@@ -52,9 +62,9 @@ class Store:
         """Sessions left open by a previous run (crash, Ctrl+C) are marked as ended."""
         rows = self.db.execute("SELECT id, started_at, meta, stats FROM sessions WHERE ended_at IS NULL").fetchall()
         for sid, started, meta, stats in rows:
-            meta = json.loads(meta)
+            meta = loads(meta)
             meta.setdefault("close_reason", "s2snoop stopped during the session")
-            ended = started + float(json.loads(stats).get("duration") or 0)
+            ended = started + float(loads(stats).get("duration") or 0)
             self.db.execute("UPDATE sessions SET ended_at=?, meta=? WHERE id=?", (ended, json.dumps(meta), sid))
         self.db.commit()
 
@@ -88,20 +98,20 @@ class Store:
     def list_sessions(self, limit: int = 200) -> list[dict]:
         cur = self.db.execute(
             "SELECT id, started_at, ended_at, meta, stats FROM sessions ORDER BY started_at DESC LIMIT ?", (limit,))
-        return [{"id": r[0], "started_at": r[1], "ended_at": r[2], "meta": json.loads(r[3]),
-                 "stats": json.loads(r[4])} for r in cur.fetchall()]
+        return [{"id": r[0], "started_at": r[1], "ended_at": r[2], "meta": loads(r[3]),
+                 "stats": loads(r[4])} for r in cur.fetchall()]
 
     def get_session_row(self, sid: str) -> dict | None:
         r = self.db.execute("SELECT id, started_at, ended_at, meta, stats FROM sessions WHERE id=?",
                             (sid,)).fetchone()
         if not r:
             return None
-        return {"id": r[0], "started_at": r[1], "ended_at": r[2], "meta": json.loads(r[3]), "stats": json.loads(r[4])}
+        return {"id": r[0], "started_at": r[1], "ended_at": r[2], "meta": loads(r[3]), "stats": loads(r[4])}
 
     def iter_events(self, sid: str):
         cur = self.db.execute("SELECT t, source, data FROM events WHERE session_id=? ORDER BY id", (sid,))
         for t, source, data in cur:
-            yield t, source, json.loads(data)
+            yield t, source, loads(data)
 
     def events_page(self, sid: str, offset: int, limit: int, type_filter: str | None, source: str | None) -> dict:
         where, args = ["session_id=?"], [sid]
@@ -115,13 +125,13 @@ class Store:
         total = self.db.execute(f"SELECT COUNT(*) FROM events WHERE {clause}", args).fetchone()[0]
         cur = self.db.execute(f"SELECT id, t, source, type, data FROM events WHERE {clause} ORDER BY id LIMIT ? OFFSET ?",
                               [*args, limit, offset])
-        rows = [{"id": r[0], "t": r[1], "source": r[2], "type": r[3], "data": json.loads(r[4])} for r in cur]
+        rows = [{"id": r[0], "t": r[1], "source": r[2], "type": r[3], "data": loads(r[4])} for r in cur]
         return {"total": total, "rows": rows}
 
     def series_since(self, sid: str, after_seq: int) -> list[dict]:
         cur = self.db.execute("SELECT seq, t, kind, data FROM series WHERE session_id=? AND seq>? ORDER BY seq",
                               (sid, after_seq))
-        return [{"seq": r[0], "t": r[1], "kind": r[2], "data": json.loads(r[3])} for r in cur]
+        return [{"seq": r[0], "t": r[1], "kind": r[2], "data": loads(r[3])} for r in cur]
 
     def sessions_older_than(self, epoch: float) -> list[str]:
         cur = self.db.execute("SELECT id FROM sessions WHERE started_at < ?", (epoch,))
