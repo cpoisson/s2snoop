@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>s2snoop</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%238b7dff'/%3E%3Cpath d='M6 16h4l3-7 4 14 3-9 2 2h4' stroke='%230a0b10' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo" aria-hidden="true"></span>s2<span>snoop</span></div>
+  <div class="chips" id="chips"></div>
+  <button class="btn ghost only-mobile" id="toggle-sessions" aria-label="Sessions">Sessions</button>
+</header>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="side-head">
+      <h2>Sessions</h2>
+      <select id="client-filter" aria-label="Filter by client"><option value="">all clients</option></select>
+    </div>
+    <button class="btn ghost danger small clear-btn" id="clear-btn" title="Delete every ended session, with its audio and images. Live sessions are kept.">Clear ended sessions</button>
+    <ul class="sessions" id="sessions"></ul>
+    <p class="empty" id="no-sessions" hidden>No session yet. Connect a Realtime client to the proxy.</p>
+  </aside>
+
+  <main class="main" id="main">
+    <section class="welcome" id="welcome">
+      <h1>Pick a session</h1>
+      <p>Live sessions appear on the left as they happen. Connect a Realtime client to the proxy (default <code>ws://&lt;this machine&gt;:8765/v1/realtime</code>); add <code>?client=name</code> to label it.</p>
+      <div id="setup"></div>
+    </section>
+
+    <section class="session" id="session" hidden>
+      <div class="s-head">
+        <div class="s-title">
+          <span class="live-badge" id="live-badge" hidden>● LIVE</span>
+          <h1 id="s-client"></h1>
+          <span class="muted mono" id="s-id"></span>
+        </div>
+        <div class="s-meta mono" id="s-meta"></div>
+        <button class="btn ghost danger" id="delete-btn" hidden>Delete</button>
+      </div>
+
+      <div class="stats" id="stats"></div>
+
+      <nav class="tabs" role="tablist">
+        <button role="tab" class="tab active" data-tab="conv">Conversation</button>
+        <button role="tab" class="tab" data-tab="events">Raw events</button>
+        <button role="tab" class="tab" data-tab="config">Session &amp; config</button>
+      </nav>
+
+      <div class="tab-panel" data-panel="conv">
+        <div class="timeline-card">
+          <div class="tl-toolbar">
+            <button class="btn play" id="play-btn" aria-label="Play">▶</button>
+            <span class="mono time" id="time-label">00:00.0</span>
+            <select id="speed" aria-label="Speed" title="Above 1×, the voice pitch changes"><option value="1">1×</option><option value="1.5">1.5×</option><option value="2">2×</option></select>
+            <label class="chk u"><input type="checkbox" id="mute-user"> mute user</label>
+            <label class="chk a"><input type="checkbox" id="mute-asst"> mute assistant</label>
+            <span class="spacer"></span>
+            <label class="chk"><input type="checkbox" id="follow" checked> follow live</label>
+            <label class="zoom">zoom <input type="range" id="zoom" min="8" max="400" value="60"></label>
+          </div>
+          <div class="tl-wrap" id="tl-wrap">
+            <canvas id="tl-canvas"></canvas>
+            <div class="tl-scroll" id="tl-scroll"><div class="tl-spacer" id="tl-spacer"></div></div>
+            <div class="tl-tip mono" id="tl-tip" hidden></div>
+          </div>
+          <div class="tl-legend" id="tl-legend"></div>
+          <p class="audio-note" id="audio-note" hidden></p>
+        </div>
+
+        <div class="conv-grid">
+          <div class="feed" id="feed"></div>
+          <aside class="inspector" id="inspector"><p class="muted">Click a turn for details: latencies, LLM request, TTS segments.</p></aside>
+        </div>
+      </div>
+
+      <div class="tab-panel" data-panel="events" hidden>
+        <div class="ev-toolbar">
+          <input id="ev-type" placeholder="type contains… (e.g. response.done)" aria-label="Type filter">
+          <select id="ev-source" aria-label="Source">
+            <option value="">all sources</option><option value="c2s">client → server</option>
+            <option value="s2c">server → client</option><option value="llm">LLM</option>
+            <option value="probe">probe</option><option value="snoop">snoop</option>
+          </select>
+          <button class="btn ghost" id="ev-prev">←</button><span class="mono" id="ev-page"></span><button class="btn ghost" id="ev-next">→</button>
+          <button class="btn ghost" id="ev-refresh">Refresh</button>
+        </div>
+        <div class="ev-list" id="ev-list"></div>
+      </div>
+
+      <div class="tab-panel" data-panel="config" hidden>
+        <div class="config" id="config"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
