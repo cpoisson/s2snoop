@@ -13,12 +13,34 @@ It sits between your client and your server as a transparent proxy. You don't mo
 It works with any WebSocket Realtime client (a robot, a browser, the Agents SDK, a script) and any Realtime
 server (speech-to-speech, OpenAI, or anything else that speaks the protocol).
 
-```
-client ──ws──▶ A · Realtime proxy ──ws──▶ Realtime server ──http──▶ B · LLM proxy ──▶ LLM server
-                    │                           │ C · probe (optional, in-process, UDP)
-                    └─────────────┬─────────────┘
-                                  ▼
-                 s2snoop: SQLite + audio files → dashboard
+```mermaid
+flowchart LR
+    client["Realtime client<br/>robot · script · SDK"]
+    A["A · Realtime proxy<br/>:8765"]
+    subgraph server["Realtime server, e.g. speech-to-speech :8766"]
+        pipe["VAD → STT → LLM → TTS"]
+        C["C · probe<br/>(optional)"]
+    end
+    B["B · LLM proxy<br/>:8081 (optional)"]
+    llm["LLM server<br/>OpenAI-compatible"]
+
+    store[("s2snoop store<br/>SQLite + audio + images")]
+    ui["Dashboard :8007<br/>timeline · replay · Talk"]
+    browser["Browser mic"]
+
+    client <-->|ws| A
+    A <-->|ws| pipe
+    pipe <-->|http| B
+    B <-->|http| llm
+
+    A -.->|events, audio| store
+    C -.->|UDP :8799| store
+    B -.->|requests, timings| store
+    store --> ui
+    browser <-->|"ws /talk, relayed like A"| ui
+
+    classDef tap stroke:#8b7dff,stroke-width:2px
+    class A,B,C tap
 ```
 
 | Tap | What it sees | What you need |

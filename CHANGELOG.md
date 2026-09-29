@@ -8,6 +8,10 @@ that break compatibility; they are listed under **Changed** and marked **Breakin
 
 ## [Unreleased]
 
+### Changed
+
+- README: the architecture schematic is now a Mermaid diagram, rendered by GitHub.
+
 ## [0.3.0] - 2026-09-29
 
 ### Changed
