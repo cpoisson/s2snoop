@@ -1,5 +1,7 @@
 # s2snoop
 
+[![tests](https://github.com/cpoisson/s2snoop/actions/workflows/tests.yml/badge.svg)](https://github.com/cpoisson/s2snoop/actions/workflows/tests.yml)
+
 *Listen in on your voice agent.*
 
 Watch an **OpenAI Realtime** voice session as it happens, then replay it with the audio lined up:
@@ -36,7 +38,7 @@ If B or C isn't running, its lanes are hidden from the dashboard.
 Requires Python ≥ 3.10 and [uv](https://docs.astral.sh/uv/).
 
 ```bash
-git clone <this repo> && cd s2snoop
+git clone https://github.com/cpoisson/s2snoop.git && cd s2snoop
 uv sync
 ```
 

@@ -21,6 +21,9 @@ dependencies = [
     "numpy>=1.26",
 ]
 
+[project.urls]
+Repository = "https://github.com/cpoisson/s2snoop"
+
 [project.scripts]
 s2snoop = "s2snoop.cli:main"
 
