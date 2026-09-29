@@ -13,6 +13,7 @@
 <header class="top">
   <div class="brand"><span class="logo" aria-hidden="true"></span>s2<span>snoop</span></div>
   <div class="chips" id="chips"></div>
+  <button class="btn talk" id="talk-btn" data-talk><svg class="mic-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg><span class="talk-label" data-idle="Talk">Talk</span></button>
   <button class="btn ghost only-mobile" id="toggle-sessions" aria-label="Sessions">Sessions</button>
 </header>
 
@@ -32,6 +33,9 @@
       <h1>Pick a session</h1>
       <p>Live sessions appear on the left as they happen. Connect a Realtime client to the proxy (default <code>ws://&lt;this machine&gt;:8765/v1/realtime</code>); add <code>?client=name</code> to label it.</p>
       <div id="setup"></div>
+      <p class="talk-cta">No client handy?
+        <button class="btn small talk" data-talk><svg class="mic-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg><span class="talk-label" data-idle="Talk from this browser">Talk from this browser</span></button>
+      </p>
     </section>
 
     <section class="session" id="session" hidden>
@@ -101,6 +105,17 @@
   </main>
 </div>
 
+<div class="callbar" id="callbar" role="region" aria-label="Call" hidden>
+  <svg class="mic-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>
+  <div class="meter" aria-hidden="true"><i id="cb-level"></i></div>
+  <span class="cb-state" id="cb-state" aria-live="polite">connecting…</span>
+  <span class="cb-info mono" id="cb-info"></span>
+  <span class="spacer"></span>
+  <button class="btn" id="cb-mute" aria-pressed="false">Mute</button>
+  <button class="btn hangup" id="cb-hangup">Hang up</button>
+</div>
+
 <script src="/static/app.js"></script>
+<script src="/static/talk.js"></script>
 </body>
 </html>

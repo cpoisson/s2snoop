@@ -18,8 +18,11 @@ logger = logging.getLogger("s2snoop.web")
 STATIC = Path(__file__).parent / "static"
 
 
-def create_web_app(hub: Hub, info: dict) -> FastAPI:
+def create_web_app(hub: Hub, info: dict, ws_relay=None) -> FastAPI:
     app = FastAPI(title="s2snoop", docs_url=None, redoc_url=None)
+    if ws_relay is not None:
+        # Browser mic: same origin as the dashboard, so it works over the dashboard's https without mixed content.
+        app.add_api_websocket_route("/talk/{path:path}", ws_relay)
 
     def _snap(sid: str) -> dict:
         snap = hub.snapshot(sid)
@@ -31,7 +34,7 @@ def create_web_app(hub: Hub, info: dict) -> FastAPI:
     async def index():
         # Version the asset URLs with their mtime: a browser can never keep running an old app.js.
         html = (STATIC / "index.html").read_text()
-        for name in ("app.js", "style.css"):
+        for name in ("app.js", "talk.js", "style.css"):
             version = int((STATIC / name).stat().st_mtime)
             html = html.replace(f"/static/{name}\"", f"/static/{name}?v={version}\"")
         return HTMLResponse(html, headers={"Cache-Control": "no-store"})

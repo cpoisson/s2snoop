@@ -169,3 +169,39 @@ details.req pre, pre.json { font-family: var(--font-mono); font-size: 11.5px; wh
   .main { padding: 12px 12px 60px; }
   .zoom input { width: 80px; }
 }
+
+/* browser mic: header button, welcome call-to-action, call bar */
+.mic-ico { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; flex: none; }
+.mic-ico rect { fill: currentColor; stroke: none; }
+.btn.talk { display: inline-flex; align-items: center; gap: 6px; color: var(--user); border-color: rgba(34,211,238,.45); white-space: nowrap; }
+.btn.talk:hover:not(:disabled) { border-color: var(--user); background: rgba(34,211,238,.08); }
+.btn.talk:disabled { opacity: .45; cursor: not-allowed; }
+.btn.talk.on-call { opacity: 1; color: var(--error); border-color: rgba(255,106,117,.45); cursor: default; }
+.talk-cta { margin-top: 18px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.callbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; display: flex; align-items: center; gap: 12px;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); background: var(--bg-elev); border-top: 1px solid var(--border-strong);
+  box-shadow: 0 -8px 24px rgba(0,0,0,.35); }
+.callbar > .mic-ico { width: 18px; height: 18px; color: var(--user); }
+.callbar .meter { width: 90px; height: 6px; border-radius: 3px; background: var(--bg-elev-3); overflow: hidden; flex: none; }
+.callbar .meter i { display: block; height: 100%; width: 0; background: var(--user); transition: width 60ms linear; }
+.cb-state { font-weight: 600; white-space: nowrap; }
+.cb-state[data-state=listening] { color: var(--success); }
+.cb-state[data-state=hearing] { color: var(--user); }
+.cb-state[data-state=thinking] { color: var(--processing); }
+.cb-state[data-state=speaking] { color: var(--assistant); }
+.cb-state[data-state=error] { color: var(--error); }
+.cb-info { font-size: 12px; color: var(--text-faint); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.callbar .spacer { flex: 1; }
+.callbar .btn[aria-pressed=true] { color: var(--processing); border-color: var(--processing); }
+.btn.hangup { background: var(--error); border-color: var(--error); color: #fff; font-weight: 600; }
+.btn.hangup:hover { background: #ff808a; }
+body.in-call .main { padding-bottom: 96px; }
+@media (max-width: 760px) {
+  .btn.talk .talk-label { display: none; }
+  .talk-cta .btn.talk .talk-label { display: inline; }
+  .callbar { flex-wrap: wrap; gap: 8px 12px; }
+  .cb-info { order: 5; flex-basis: 100%; }
+  .callbar .btn { padding: 9px 16px; }
+  .btn.hangup { padding: 9px 22px; }
+  body.in-call .main { padding-bottom: 130px; }
+}

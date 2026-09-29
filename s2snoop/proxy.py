@@ -77,7 +77,6 @@ def create_proxy_app(hub: Hub, router: Router) -> FastAPI:
 
     app = FastAPI(title="s2snoop proxy", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 
-    @app.websocket("/{path:path}")
     async def ws_proxy(ws: WebSocket, path: str) -> None:
         route, base, rest = router.resolve(path)
         query = [(k, v) for k, v in parse_qsl(ws.url.query, keep_blank_values=True)]
@@ -120,7 +119,7 @@ def create_proxy_app(hub: Hub, router: Router) -> FastAPI:
                 if data is None:
                     continue
                 await upstream.send(data)
-                hub.ingest_realtime(sid, time.time(), "c2s", data)
+                _record(hub, sid, "c2s", data)
 
         async def upstream_to_client() -> str:
             async for data in upstream:
@@ -128,7 +127,7 @@ def create_proxy_app(hub: Hub, router: Router) -> FastAPI:
                     await ws.send_text(data)
                 else:
                     await ws.send_bytes(data)
-                hub.ingest_realtime(sid, time.time(), "s2c", data)
+                _record(hub, sid, "s2c", data)
             return f"upstream closed ({upstream.close_code})"
 
         tasks = [asyncio.create_task(client_to_upstream()), asyncio.create_task(upstream_to_client())]
@@ -156,6 +155,10 @@ def create_proxy_app(hub: Hub, router: Router) -> FastAPI:
                 except (RuntimeError, WebSocketDisconnect):
                     pass
 
+    app.add_api_websocket_route("/{path:path}", ws_proxy)
+    # Reused by the dashboard's same-origin /talk route (browser mic over the dashboard's own http(s)).
+    app.state.ws_relay = ws_proxy
+
     @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"])
     async def http_proxy(request: Request, path: str):
         _, base, rest = router.resolve(path)
@@ -182,6 +185,14 @@ class _Closer:
 
     async def __call__(self) -> None:
         await self.resp.aclose()
+
+
+def _record(hub: Hub, sid: str, direction: str, data) -> None:
+    # Recording happens after forwarding and must never break the relay.
+    try:
+        hub.ingest_realtime(sid, time.time(), direction, data)
+    except Exception:  # noqa: BLE001
+        logger.exception("recording failed (%s), relay continues", direction)
 
 
 def _guess_client(user_agent: str) -> str:

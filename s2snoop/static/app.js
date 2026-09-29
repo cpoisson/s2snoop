@@ -43,7 +43,11 @@ function resetSessionData() {
 }
 
 function onMessage(msg) {
-  if (msg.type === "sessions") { S.sessions = msg.sessions; S.status = msg.status; renderSessions(); renderChips(); renderSetup(); return; }
+  if (msg.type === "sessions") {
+    S.sessions = msg.sessions; S.status = msg.status; renderSessions(); renderChips(); renderSetup();
+    if (typeof Talk !== "undefined") Talk.onSessions(S.sessions);
+    return;
+  }
   if (!S.sid) return;
   if (msg.type === "snapshot" && msg.session.id === S.sid) {
     const first = !S.snap;

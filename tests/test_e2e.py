@@ -98,11 +98,12 @@ async def stack(tmp_path):
     hub = Hub(tmp_path / "data")
     up_port, px_port, llm_port, tap_port, ui_port = (free_port() for _ in range(5))
     upstream = await websockets.serve(fake_realtime, "127.0.0.1", up_port)
+    proxy_app = create_proxy_app(hub, Router(f"ws://127.0.0.1:{up_port}", {}))
     servers = [
-        await start(create_proxy_app(hub, Router(f"ws://127.0.0.1:{up_port}", {})), px_port),
+        await start(proxy_app, px_port),
         await start(fake_llm_app(), llm_port),
         await start(create_llm_tap_app(hub, f"http://127.0.0.1:{llm_port}"), tap_port),
-        await start(create_web_app(hub, {}), ui_port),
+        await start(create_web_app(hub, {}, proxy_app.state.ws_relay), ui_port),
     ]
     yield hub, px_port, tap_port, ui_port
     for server, task in servers:
@@ -181,6 +182,52 @@ async def test_proxy_llm_tap_and_web(stack):
         assert replay["turns"][-1]["transcript"] == "hello"
         assert replay["placements"][0]["audio_s"] == pytest.approx(0.2)
         assert replay["stats"]["llm_calls"] == 1
+
+
+async def test_browser_talk_route(stack):
+    """The dashboard's same-origin /talk route relays and records exactly like the proxy port."""
+    hub, _, _, ui_port = stack
+    async with httpx.AsyncClient() as http:
+        html = (await http.get(f"http://127.0.0.1:{ui_port}/")).text
+        assert "/static/talk.js?v=" in html and "data-talk" in html
+    chunk = base64.b64encode(np.full(2400, 1000, dtype="<i2").tobytes()).decode()
+    async with websockets.connect(f"ws://127.0.0.1:{ui_port}/talk/v1/realtime?client=browser") as ws:
+        assert json.loads(await ws.recv())["type"] == "session.created"
+        await ws.send(json.dumps({"type": "session.update", "session": {"type": "realtime", "audio": {
+            "input": {"format": {"type": "audio/pcm", "rate": 24000}},
+            "output": {"format": {"type": "audio/pcm", "rate": 24000}}}}}))
+        for _ in range(10):
+            await ws.send(json.dumps({"type": "input_audio_buffer.append", "audio": chunk}))
+            await asyncio.sleep(0.05)
+        item = None
+        while True:
+            ev = json.loads(await asyncio.wait_for(ws.recv(), 3))
+            item = ev.get("item_id", item) if ev["type"] == "response.output_audio.delta" else item
+            if ev["type"] == "response.done":
+                break
+        await ws.send(json.dumps({"type": "conversation.item.truncate", "item_id": item, "content_index": 0,
+                                  "audio_end_ms": 120}))
+        await asyncio.sleep(0.1)
+    await asyncio.sleep(0.2)
+    hub.flush()
+    s = hub.list_sessions()[0]
+    assert s["meta"]["client"] == "browser" and not s["live"]
+    assert (hub.session_dir(s["id"]) / "mic.pcm").stat().st_size == 10 * 4800
+    snap = hub.snapshot(s["id"])
+    assert snap["turns"][-1]["transcript"] == "hello"
+
+
+async def test_recording_failure_does_not_break_relay(stack, monkeypatch):
+    hub, px_port, _, _ = stack
+    monkeypatch.setattr(hub, "ingest_realtime", lambda *a, **k: 1 / 0)
+    async with websockets.connect(f"ws://127.0.0.1:{px_port}/v1/realtime") as ws:
+        assert json.loads(await ws.recv())["type"] == "session.created"
+        chunk = base64.b64encode(np.zeros(2400, dtype="<i2").tobytes()).decode()
+        for _ in range(10):
+            await ws.send(json.dumps({"type": "input_audio_buffer.append", "audio": chunk}))
+        types = []
+        while "response.done" not in types:
+            types.append(json.loads(await asyncio.wait_for(ws.recv(), 3))["type"])
 
 
 async def test_http_passthrough(tmp_path):

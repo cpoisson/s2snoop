@@ -2,7 +2,7 @@
 
     s2snoop [--listen 0.0.0.0:8765] [--upstream ws://127.0.0.1:8766] \
                    [--llm-listen 127.0.0.1:8081 --llm-upstream http://host:8080] \
-                   [--ui 127.0.0.1:7860] [--route name=wss://host] [--no-audio]
+                   [--ui 127.0.0.1:8767] [--route name=wss://host] [--no-audio]
 
     s2snoop s2s [--s2s-python PATH] -- serve --port 8766 ...
 """
@@ -51,17 +51,20 @@ async def serve(args: argparse.Namespace) -> None:
     hub = Hub(Path(args.data), record_audio=not args.no_audio, retention_days=args.retention_days)
     routes = dict(r.split("=", 1) for r in args.route)
     info = {"listen": args.listen, "upstream": args.upstream, "routes": routes, "ui": args.ui,
-            "llm_listen": args.llm_listen, "llm_upstream": args.llm_upstream, "probe_port": args.probe_port}
+            "llm_listen": args.llm_listen, "llm_upstream": args.llm_upstream, "probe_port": args.probe_port,
+            "tls": bool(args.tls_cert)}
     servers = []
 
-    def add(app, hostport: str) -> None:
+    def add(app, hostport: str, tls: bool = False) -> None:
         host, port = _hostport(hostport)
+        ssl = {"ssl_certfile": args.tls_cert, "ssl_keyfile": args.tls_key} if tls and args.tls_cert else {}
         config = uvicorn.Config(app, host=host, port=port, log_level="warning", ws_max_size=64 * 1024 * 1024,
-                                ws_ping_interval=None, lifespan="on")
+                                ws_ping_interval=None, lifespan="on", **ssl)
         servers.append(uvicorn.Server(config))
 
-    add(create_proxy_app(hub, Router(args.upstream, routes)), args.listen)
-    add(create_web_app(hub, info), args.ui)
+    proxy_app = create_proxy_app(hub, Router(args.upstream, routes))
+    add(proxy_app, args.listen)
+    add(create_web_app(hub, info, proxy_app.state.ws_relay), args.ui, tls=True)
     if args.llm_upstream:
         add(create_llm_tap_app(hub, args.llm_upstream), args.llm_listen)
 
@@ -77,8 +80,11 @@ async def serve(args: argparse.Namespace) -> None:
     if args.llm_upstream:
         print(f"  proxy LLM       http://{args.llm_listen}  →  {args.llm_upstream}")
     print(f"  probe (UDP)     127.0.0.1:{args.probe_port}")
-    print(f"  dashboard       http://localhost:{ui_port}" + (f"   ·   http://{lan}:{ui_port}" if lan and ui_host
-                                                               in ("0.0.0.0", "::") else ""))
+    scheme = "https" if args.tls_cert else "http"
+    print(f"  dashboard       {scheme}://localhost:{ui_port}" + (f"   ·   {scheme}://{lan}:{ui_port}" if lan and ui_host
+                                                                 in ("0.0.0.0", "::") else ""))
+    if not args.tls_cert and ui_host not in ("127.0.0.1", "localhost", "::1"):
+        print("                  (browser mic works on localhost only: add --tls-cert/--tls-key for other devices)")
     print(f"  data            {Path(args.data).resolve()}" + ("  (audio recording off)" if args.no_audio else ""))
     print(flush=True)
 
@@ -186,13 +192,18 @@ def main() -> None:
                         help="named route: ws://proxy/NAME/v1/realtime → URL/v1/realtime (repeatable)")
     parser.add_argument("--llm-listen", default="127.0.0.1:8081", help="LLM proxy address")
     parser.add_argument("--llm-upstream", default=None, help="OpenAI-compatible LLM server to proxy (e.g. http://llm-host:8080)")
-    parser.add_argument("--ui", default="127.0.0.1:7860", help="dashboard address (default 127.0.0.1:7860; no auth, bind wider with care)")
+    parser.add_argument("--ui", default="127.0.0.1:8767", help="dashboard address (default 127.0.0.1:8767; no auth, bind wider with care)")
+    parser.add_argument("--tls-cert", default=None, help="serve the dashboard over https (needed for the browser mic "
+                        "on other devices)")
+    parser.add_argument("--tls-key", default=None, help="private key for --tls-cert")
     parser.add_argument("--probe-port", type=int, default=8799, help="probe UDP port")
     parser.add_argument("--data", default=str(Path.cwd() / "data"), help="data directory")
     parser.add_argument("--no-audio", action="store_true", help="do not record audio")
     parser.add_argument("--retention-days", type=float, default=None, help="delete sessions older than N days")
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
+    if bool(args.tls_cert) != bool(args.tls_key):
+        parser.error("--tls-cert and --tls-key go together")
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s", datefmt="%H:%M:%S")
     logging.getLogger("httpx").setLevel(logging.WARNING)

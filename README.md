@@ -60,7 +60,7 @@ uv run s2snoop s2s -- serve --host 127.0.0.1 --port 8766 \
   --responses_api_base_url http://127.0.0.1:8081 --responses_api_api_key ""
 ```
 
-Open <http://127.0.0.1:7860>.
+Open <http://127.0.0.1:8767>.
 
 `s2snoop s2s` uses the Python interpreter of the `speech-to-speech` found on your `PATH` (or the one
 given with `--s2s-python /path/to/venv/bin/python`). It puts this package on `PYTHONPATH` and runs
@@ -77,6 +77,29 @@ uv run s2snoop --listen 127.0.0.1:8765 --route openai=wss://api.openai.com
 
 Point the client at `ws://127.0.0.1:8765/openai/v1/realtime?model=<model>`. The `Authorization` header and the
 query string are passed through unchanged and never stored.
+
+### Talk from the browser
+
+No robot or script at hand? Click **Talk** in the dashboard header. The browser becomes a Realtime client:
+
+- It streams your mic at 24 kHz, with the browser's echo cancellation and noise suppression.
+- It plays the answers and sends `conversation.item.truncate` when you interrupt, so the cut point on the
+  timeline is exact rather than estimated.
+- The new session opens by itself, and the timeline fills in as you speak.
+
+The call goes through the dashboard's own `/talk/…` WebSocket to the default `--upstream`, and is recorded
+like any other client (labelled `browser`).
+
+Browsers only allow the microphone on `localhost` or over `https`. To talk from another device (a phone,
+say), serve the dashboard over HTTPS:
+
+```bash
+uv run s2snoop --ui 0.0.0.0:8767 --tls-cert cert.pem --tls-key key.pem
+```
+
+You can use any certificate the device trusts, for example one from `mkcert` or `tailscale cert`.
+`tailscale serve` in front of `127.0.0.1:8767` works too. The Talk button is disabled, with a tooltip,
+when the page can't use the mic.
 
 ### Labelling clients
 
@@ -103,7 +126,8 @@ You can also pass `.wav` files instead of text; they work on any OS.
 | `--route NAME=URL` | | named upstream: `ws://proxy/NAME/v1/realtime` → `URL/v1/realtime` (repeatable) |
 | `--llm-listen` | `127.0.0.1:8081` | LLM proxy address |
 | `--llm-upstream` | *off* | OpenAI-compatible LLM server to proxy |
-| `--ui` | `127.0.0.1:7860` | dashboard address |
+| `--ui` | `127.0.0.1:8767` | dashboard address (kept clear of 7860–7959, which Gradio apps use) |
+| `--tls-cert` / `--tls-key` | | serve the dashboard over HTTPS (needed for the browser mic on other devices) |
 | `--probe-port` | `8799` | UDP port the probe sends to |
 | `--data` | `./data` | SQLite database, audio and images |
 | `--no-audio` | | do not record audio |
@@ -166,13 +190,13 @@ uv run s2snoop s2s [--s2s-python PATH] [--probe HOST:PORT] -- <speech-to-speech 
 | Port | Default bind | Authentication | Who can reach it |
 |---|---|---|---|
 | Realtime proxy (`--listen`) | `0.0.0.0:8765` | none | anyone on your network: they can open sessions against your upstream (speech-to-speech, or OpenAI with their own key) |
-| Dashboard (`--ui`) | `127.0.0.1:7860` | none | this machine only. With `--ui 0.0.0.0:7860`, anyone on your network can **listen to every recording, see camera images and prompts, and delete sessions** |
+| Dashboard (`--ui`) | `127.0.0.1:8767` | none | this machine only. With `--ui 0.0.0.0:8767`, anyone on your network can **listen to every recording, see camera images and prompts, delete sessions, and talk to your upstream** through `/talk` |
 | LLM proxy (`--llm-listen`) | `127.0.0.1:8081` | none | this machine only |
 | Probe (UDP) | `127.0.0.1:8799` | none | this machine only |
 
 If the client runs on the same machine, use `--listen 127.0.0.1:8765` so nothing is exposed at all.
 
-**In transit.** The proxy speaks plain `ws://`. Audio, transcripts and images between the client and the
+**In transit.** The proxy speaks plain `ws://`, and so does the dashboard unless you pass `--tls-cert`/`--tls-key`. Audio, transcripts and images between the client and the
 proxy are not encrypted. `wss://` upstreams (e.g. `--route openai=wss://api.openai.com`) stay encrypted
 between the proxy and the upstream.
 
@@ -202,6 +226,8 @@ secret that your client puts in `instructions`, a tool call or an LLM request **
 ```bash
 uv run pytest    # unit + end-to-end (fake Realtime server, fake SSE LLM, real proxies)
 ```
+
+Contributors (human or agent): see [AGENTS.md](AGENTS.md) for the layout and the rules.
 
 The store (`s2snoop/store.py`) doesn't depend on the web layer. Another front end can read the same
 `data/snoop.db` and `data/sessions/<id>/` files.
